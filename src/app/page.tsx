@@ -1,7 +1,7 @@
 "use client"; 
 
 import React, { useState, useMemo } from 'react';
-import { Calculator, DollarSign, Droplets, Zap, Clock, Package } from 'lucide-react';
+import { Calculator, DollarSign, Droplets, Zap, Clock, Package, Palette } from 'lucide-react';
 
 export default function ResinPrintCalculator() {
   const [inputs, setInputs] = useState({
@@ -33,14 +33,81 @@ export default function ResinPrintCalculator() {
     // Labor and overhead
     laborTimeMinutes: 30,
     laborRatePerHour: 20,
-    overheadPercentage: 15
+    overheadPercentage: 15,
+    
+    // Painting section - NEW
+    includePainting: false,
+    paintingComplexity: 'standard' as 'basic' | 'standard' | 'advanced' | 'premium',
+    primerCost: 3,
+    numberOfColors: 5,
+    paintCostPerColor: 3,
+    varnishCost: 5,
+    brushesCost: 2,
+    otherMaterialsCost: 3,
+    paintingTimeHours: 4,
+    paintingLaborRate: 25,
+    paintingFailureRate: 5,
+    paintingOverheadPercentage: 15
   });
 
-  // const handleChange = (field, value) => {
-  const handleChange = (field: keyof typeof inputs, value: string) => {
+  const handleChange = (field: keyof typeof inputs, value: string | boolean) => {
     setInputs(prev => ({
       ...prev,
-      [field]: parseFloat(value) || 0
+      [field]: typeof value === 'boolean' ? value : (parseFloat(value as string) || 0)
+    }));
+  };
+
+  // Painting complexity presets
+  const paintingPresets = {
+    basic: {
+      name: 'Базове фарбування',
+      numberOfColors: 3,
+      paintCostPerColor: 2,
+      brushesCost: 1,
+      otherMaterialsCost: 2,
+      paintingTimeHours: 2,
+      paintingFailureRate: 3
+    },
+    standard: {
+      name: 'Стандартне фарбування',
+      numberOfColors: 5,
+      paintCostPerColor: 3,
+      brushesCost: 2,
+      otherMaterialsCost: 3,
+      paintingTimeHours: 4,
+      paintingFailureRate: 5
+    },
+    advanced: {
+      name: 'Просунуте фарбування',
+      numberOfColors: 8,
+      paintCostPerColor: 4,
+      brushesCost: 3,
+      otherMaterialsCost: 5,
+      paintingTimeHours: 8,
+      paintingFailureRate: 8
+    },
+    premium: {
+      name: 'Преміум фарбування',
+      numberOfColors: 12,
+      paintCostPerColor: 5,
+      brushesCost: 5,
+      otherMaterialsCost: 10,
+      paintingTimeHours: 15,
+      paintingFailureRate: 10
+    }
+  };
+
+  const loadPaintingPreset = (presetKey: keyof typeof paintingPresets) => {
+    const preset = paintingPresets[presetKey];
+    setInputs(prev => ({
+      ...prev,
+      paintingComplexity: presetKey,
+      numberOfColors: preset.numberOfColors,
+      paintCostPerColor: preset.paintCostPerColor,
+      brushesCost: preset.brushesCost,
+      otherMaterialsCost: preset.otherMaterialsCost,
+      paintingTimeHours: preset.paintingTimeHours,
+      paintingFailureRate: preset.paintingFailureRate
     }));
   };
 
@@ -52,9 +119,15 @@ export default function ResinPrintCalculator() {
       buildPlateCost, buildPlateLifespanPrints,
       powerConsumptionWatts, electricityPricePerKwh,
       uvCuringTimeMinutes, uvCuringWatts,
-      laborTimeMinutes, laborRatePerHour, overheadPercentage
+      laborTimeMinutes, laborRatePerHour, overheadPercentage,
+      // Painting parameters
+      includePainting, primerCost, numberOfColors, paintCostPerColor,
+      varnishCost, brushesCost, otherMaterialsCost,
+      paintingTimeHours, paintingLaborRate, paintingFailureRate,
+      paintingOverheadPercentage
     } = inputs;
 
+    // ===== PRINTING COSTS =====
     // Material costs
     const totalResinMl = volumeMl + supportVolumeMl;
     const resinCost = (totalResinMl / 1000) * resinPricePerLiter;
@@ -78,21 +151,61 @@ export default function ResinPrintCalculator() {
     const laborCost = (laborTimeMinutes / 60) * laborRatePerHour;
 
     // Subtotal before failure rate
-    const subtotal = materialCost + equipmentCost + energyCost + laborCost;
+    const printingSubtotal = materialCost + equipmentCost + energyCost + laborCost;
 
     // Failure rate adjustment
-    const failureAdjustment = subtotal * (failureRate / 100);
+    const printingFailureAdjustment = printingSubtotal * (failureRate / 100);
 
     // Total before overhead
-    const totalBeforeOverhead = subtotal + failureAdjustment;
+    const printingTotalBeforeOverhead = printingSubtotal + printingFailureAdjustment;
 
     // Overhead
-    const overhead = totalBeforeOverhead * (overheadPercentage / 100);
+    const printingOverhead = printingTotalBeforeOverhead * (overheadPercentage / 100);
 
-    // Final total
-    const totalCost = totalBeforeOverhead + overhead;
+    // Final printing total
+    const printingTotalCost = printingTotalBeforeOverhead + printingOverhead;
+
+    // ===== PAINTING COSTS =====
+    let paintingMaterialCost = 0;
+    let paintingLaborCost = 0;
+    let paintingSubtotal = 0;
+    let paintingFailureAdjustment = 0;
+    let paintingTotalBeforeOverhead = 0;
+    let paintingOverhead = 0;
+    let paintingTotalCost = 0;
+
+    // Breakdown painting materials
+    let totalPaintsCost = 0;
+    
+    if (includePainting) {
+      // Calculate material costs
+      totalPaintsCost = numberOfColors * paintCostPerColor;
+      paintingMaterialCost = primerCost + totalPaintsCost + varnishCost + brushesCost + otherMaterialsCost;
+      
+      // Calculate labor cost
+      paintingLaborCost = paintingTimeHours * paintingLaborRate;
+      
+      // Subtotal
+      paintingSubtotal = paintingMaterialCost + paintingLaborCost;
+      
+      // Failure rate adjustment
+      paintingFailureAdjustment = paintingSubtotal * (paintingFailureRate / 100);
+      
+      // Total before overhead
+      paintingTotalBeforeOverhead = paintingSubtotal + paintingFailureAdjustment;
+      
+      // Overhead
+      paintingOverhead = paintingTotalBeforeOverhead * (paintingOverheadPercentage / 100);
+      
+      // Final painting total
+      paintingTotalCost = paintingTotalBeforeOverhead + paintingOverhead;
+    }
+
+    // ===== COMBINED TOTAL =====
+    const combinedTotalCost = printingTotalCost + paintingTotalCost;
 
     return {
+      // Printing costs
       resinCost,
       ipaCost,
       materialCost,
@@ -104,11 +217,28 @@ export default function ResinPrintCalculator() {
       uvEnergyCost,
       energyCost,
       laborCost,
-      subtotal,
-      failureAdjustment,
-      totalBeforeOverhead,
-      overhead,
-      totalCost
+      printingSubtotal,
+      printingFailureAdjustment,
+      printingTotalBeforeOverhead,
+      printingOverhead,
+      printingTotalCost,
+      
+      // Painting costs
+      primerCost,
+      totalPaintsCost,
+      varnishCost,
+      brushesCost,
+      otherMaterialsCost,
+      paintingMaterialCost,
+      paintingLaborCost,
+      paintingSubtotal,
+      paintingFailureAdjustment,
+      paintingTotalBeforeOverhead,
+      paintingOverhead,
+      paintingTotalCost,
+      
+      // Combined
+      combinedTotalCost
     };
   }, [inputs]);
 
@@ -143,8 +273,6 @@ export default function ResinPrintCalculator() {
     }
   };
 
-  //const loadPreset = (preset) => {
-  //const loadPreset = (preset: typeof inputs) => {
   const loadPreset = (preset: Partial<typeof inputs>) => {
     setInputs(prev => ({
       ...prev,
@@ -419,6 +547,154 @@ export default function ResinPrintCalculator() {
                 </div>
               </div>
             </div>
+
+            {/* ============ ДОДАТИ ТУТ ПОЧАТОК ============ */}
+            {/* Painting Section */}
+            <div className="mt-6 pt-6 border-t border-purple-300/30">
+              <div className="flex items-center gap-3 mb-4">
+                <input
+                  type="checkbox"
+                  id="includePainting"
+                  checked={inputs.includePainting}
+                  onChange={(e) => handleChange('includePainting', e.target.checked)}
+                  className="w-5 h-5 rounded bg-white/5 border-purple-300/30 cursor-pointer"
+                />
+                <label htmlFor="includePainting" className="text-lg font-semibold text-purple-300 flex items-center gap-2 cursor-pointer">
+                  <Palette className="w-5 h-5" />
+                  Фарбування моделі
+                </label>
+              </div>
+
+              {inputs.includePainting && (
+                <div className="space-y-4 pl-2">
+                  {/* Presets для фарбування */}
+                  <div>
+                    <label className="block text-purple-200 font-semibold mb-2">Рівень складності</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(paintingPresets).map(([key, preset]) => (
+                        <button
+                          key={key}
+                          onClick={() => loadPaintingPreset(key as keyof typeof paintingPresets)}
+                          className={`px-4 py-2 rounded-lg transition text-sm ${
+                            inputs.paintingComplexity === key
+                              ? 'bg-pink-600 text-white'
+                              : 'bg-purple-600/50 text-purple-200 hover:bg-purple-600'
+                          }`}
+                        >
+                          {preset.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Матеріали для фарбування */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Вартість ґрунтовки ($)</label>
+                      <input
+                        type="number"
+                        value={inputs.primerCost}
+                        onChange={(e) => handleChange('primerCost', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-purple-200 text-sm mb-1">Кількість кольорів</label>
+                        <input
+                          type="number"
+                          value={inputs.numberOfColors}
+                          onChange={(e) => handleChange('numberOfColors', e.target.value)}
+                          className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-purple-200 text-sm mb-1">Ціна за колір ($)</label>
+                        <input
+                          type="number"
+                          value={inputs.paintCostPerColor}
+                          onChange={(e) => handleChange('paintCostPerColor', e.target.value)}
+                          className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Вартість лаку ($)</label>
+                      <input
+                        type="number"
+                        value={inputs.varnishCost}
+                        onChange={(e) => handleChange('varnishCost', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Вартість пензлів ($)</label>
+                      <input
+                        type="number"
+                        value={inputs.brushesCost}
+                        onChange={(e) => handleChange('brushesCost', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Інші матеріали ($)</label>
+                      <input
+                        type="number"
+                        value={inputs.otherMaterialsCost}
+                        onChange={(e) => handleChange('otherMaterialsCost', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                      <p className="text-xs text-purple-300 mt-1">Розчинники, палітра, серветки</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Час фарбування (години)</label>
+                      <input
+                        type="number"
+                        value={inputs.paintingTimeHours}
+                        onChange={(e) => handleChange('paintingTimeHours', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Ставка за фарбування ($/год)</label>
+                      <input
+                        type="number"
+                        value={inputs.paintingLaborRate}
+                        onChange={(e) => handleChange('paintingLaborRate', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Відсоток браку при фарбуванні (%)</label>
+                      <input
+                        type="number"
+                        value={inputs.paintingFailureRate}
+                        onChange={(e) => handleChange('paintingFailureRate', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-purple-200 text-sm mb-1">Накладні витрати на фарбування (%)</label>
+                      <input
+                        type="number"
+                        value={inputs.paintingOverheadPercentage}
+                        onChange={(e) => handleChange('paintingOverheadPercentage', e.target.value)}
+                        className="w-full bg-white/5 border border-purple-300/30 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* ============ ДОДАТИ ТУТ КІНЕЦЬ ============ */}
           </div>
 
           {/* Results Panel */}
@@ -429,7 +705,7 @@ export default function ResinPrintCalculator() {
                 <div>
                   <p className="text-purple-100 text-sm font-medium">ЗАГАЛЬНА ВАРТІСТЬ ДРУКУ</p>
                   <p className="text-5xl font-bold text-white mt-2">
-                    ${costs.totalCost.toFixed(2)}
+                    ${costs.printingTotalCost.toFixed(2)}
                   </p>
                 </div>
                 <DollarSign className="w-16 h-16 text-white/30" />
@@ -509,7 +785,7 @@ export default function ResinPrintCalculator() {
                 <div className="bg-white/5 rounded-lg p-3">
                   <div className="flex justify-between items-center">
                     <span className="text-purple-200 font-semibold">Коригування на брак</span>
-                    <span className="text-white font-bold">${costs.failureAdjustment.toFixed(2)}</span>
+                    <span className="text-white font-bold">${costs.printingFailureAdjustment.toFixed(2)}</span>
                   </div>
                   <div className="text-sm text-purple-300 mt-1">
                     {inputs.failureRate}% від проміжної суми
@@ -519,7 +795,7 @@ export default function ResinPrintCalculator() {
                 <div className="bg-white/5 rounded-lg p-3">
                   <div className="flex justify-between items-center">
                     <span className="text-purple-200 font-semibold">Накладні витрати</span>
-                    <span className="text-white font-bold">${costs.overhead.toFixed(2)}</span>
+                    <span className="text-white font-bold">${costs.printingOverhead.toFixed(2)}</span>
                   </div>
                   <div className="text-sm text-purple-300 mt-1">
                     {inputs.overheadPercentage}% (оренда, комунальні послуги тощо)
@@ -535,23 +811,132 @@ export default function ResinPrintCalculator() {
                 <div className="flex justify-between">
                   <span className="text-purple-200">Вартість за мл смоли</span>
                   <span className="text-white font-semibold">
-                    ${(costs.totalCost / (inputs.volumeMl + inputs.supportVolumeMl)).toFixed(3)}
+                    ${(costs.printingTotalCost / (inputs.volumeMl + inputs.supportVolumeMl)).toFixed(3)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-purple-200">Вартість за годину друку</span>
                   <span className="text-white font-semibold">
-                    ${(costs.totalCost / inputs.printTimeHours).toFixed(2)}
+                    ${(costs.printingTotalCost / inputs.printTimeHours).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-purple-200">Матеріали від загальної вартості</span>
                   <span className="text-white font-semibold">
-                    {((costs.materialCost / costs.totalCost) * 100).toFixed(1)}%
+                    {((costs.materialCost / costs.printingTotalCost) * 100).toFixed(1)}%
                   </span>
                 </div>
               </div>
             </div>
+
+            {/* ============ ДОДАТИ ТУТ ПОЧАТОК ============ */}
+            {/* Painting Total Cost - показується тільки якщо включено фарбування */}
+            {inputs.includePainting && (
+              <>
+                {/* Total Painting Cost */}
+                <div className="bg-gradient-to-br from-pink-600 to-orange-600 rounded-xl p-6 shadow-2xl">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-pink-100 text-sm font-medium">ВАРТІСТЬ ФАРБУВАННЯ</p>
+                      <p className="text-5xl font-bold text-white mt-2">
+                        ${costs.paintingTotalCost.toFixed(2)}
+                      </p>
+                    </div>
+                    <Palette className="w-16 h-16 text-white/30" />
+                  </div>
+                </div>
+
+                {/* Painting Cost Breakdown */}
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-purple-300/20">
+                  <h3 className="text-xl font-bold text-white mb-4">Деталізація витрат на фарбування</h3>
+                  
+                  <div className="space-y-3">
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-purple-200 font-semibold">Матеріали для фарбування</span>
+                        <span className="text-white font-bold">${costs.paintingMaterialCost.toFixed(2)}</span>
+                      </div>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between text-purple-300">
+                          <span>Ґрунтовка</span>
+                          <span>${costs.primerCost.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-purple-300">
+                          <span>Фарби ({inputs.numberOfColors} кольорів)</span>
+                          <span>${costs.totalPaintsCost.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-purple-300">
+                          <span>Лак</span>
+                          <span>${costs.varnishCost.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-purple-300">
+                          <span>Пензлі</span>
+                          <span>${costs.brushesCost.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-purple-300">
+                          <span>Інші матеріали</span>
+                          <span>${costs.otherMaterialsCost.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-purple-200 font-semibold">Робота з фарбування</span>
+                        <span className="text-white font-bold">${costs.paintingLaborCost.toFixed(2)}</span>
+                      </div>
+                      <div className="text-sm text-purple-300 mt-1">
+                        {inputs.paintingTimeHours} годин @ ${inputs.paintingLaborRate}/год
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-purple-200 font-semibold">Коригування на брак</span>
+                        <span className="text-white font-bold">${costs.paintingFailureAdjustment.toFixed(2)}</span>
+                      </div>
+                      <div className="text-sm text-purple-300 mt-1">
+                        {inputs.paintingFailureRate}% від проміжної суми
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 rounded-lg p-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-purple-200 font-semibold">Накладні витрати</span>
+                        <span className="text-white font-bold">${costs.paintingOverhead.toFixed(2)}</span>
+                      </div>
+                      <div className="text-sm text-purple-300 mt-1">
+                        {inputs.paintingOverheadPercentage}% (оренда, комунальні послуги тощо)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Combined Total */}
+                <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl p-6 shadow-2xl border-2 border-yellow-400/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-purple-100 text-sm font-medium">ЗАГАЛЬНА ВАРТІСТЬ (ДРУК + ФАРБУВАННЯ)</p>
+                      <p className="text-5xl font-bold text-white mt-2">
+                        ${costs.combinedTotalCost.toFixed(2)}
+                      </p>
+                      <div className="flex gap-4 mt-3 text-sm">
+                        <div>
+                          <span className="text-purple-200">Друк: </span>
+                          <span className="text-white font-semibold">${costs.printingTotalCost.toFixed(2)}</span>
+                        </div>
+                        <div>
+                          <span className="text-purple-200">Фарбування: </span>
+                          <span className="text-white font-semibold">${costs.paintingTotalCost.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <DollarSign className="w-16 h-16 text-white/30" />
+                  </div>
+                </div>
+              </>
+            )}
+            {/* ============ ДОДАТИ ТУТ КІНЕЦЬ ============ */}
           </div>
         </div>
       </div>
